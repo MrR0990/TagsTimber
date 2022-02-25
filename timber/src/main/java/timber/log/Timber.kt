@@ -16,12 +16,34 @@ class Timber private constructor() {
         throw AssertionError()
     }
 
+
     /** A facade for handling logging calls. Install instances via [`Timber.plant()`][.plant]. */
     abstract class Tree {
         @get:JvmSynthetic // Hide from public API.
         internal val explicitTag = ThreadLocal<String>()
+
+        @get:JvmSynthetic // Hide from public API.
         internal val explicitTags = ThreadLocal<MutableCollection<String>>()
+
+        @get:JvmSynthetic
+        internal val startTrackingTags =
+            ThreadLocal<MutableMap<String, Boolean>>()//Start tracking logic tags
+
+        @get:JvmSynthetic // Hide from public API.
         internal val tagsFilter = mutableListOf<String>()
+
+        @set:JvmSynthetic
+        internal open var tagsSwitch: Boolean = false
+            set(value) {
+                field = value
+            }
+
+        @get:JvmSynthetic // Hide from public API.
+        internal open val trackingTags: MutableMap<String, Boolean>?
+            get() {
+                return startTrackingTags.get()
+            }
+
 
         @get:JvmSynthetic // Hide from public API.
         internal open val tags: MutableCollection<String>?
@@ -33,6 +55,7 @@ class Timber private constructor() {
                 return tags
             }
 
+
         @get:JvmSynthetic // Hide from public API.
         internal open val tag: String?
             get() {
@@ -43,12 +66,6 @@ class Timber private constructor() {
                 return tag
             }
 
-        open fun filter(vararg filter: String): Tree {
-            for (item in filter) {
-                tagsFilter.add(item)
-            }
-            return this
-        }
 
         /** Log a verbose message with optional format args. */
         open fun v(message: String?, vararg args: Any?) {
@@ -184,25 +201,47 @@ class Timber private constructor() {
                 }
             }
 
-            val tags = tags
-            if (tags != null && tags.isNotEmpty()) {
-                var str = "["
-                var hasTags = false
-                for (item in tags) {
-                    if (tagsFilter.contains(item)) {
-                        str += item + ","
-                        hasTags = true
-                    }
-                }
-                if (hasTags) {
-                    str = str.substring(0, str.length - 1)
-                    str += "]"
-                    tag += str
-                }
+            log(priority, tag, message, t)
+
+            if (!tagsSwitch) {
+                return
             }
 
 
-            log(priority, tag, message, t)
+            val tags = tags
+            if (tags.isNullOrEmpty()) {
+                return
+            }
+
+            tagsFilter.apply {
+
+                val trackingMap = trackingTags//The tag to start logic tracking
+
+                if (isEmpty()) {//If no filter, then print all
+                    for (item in tags) {
+
+                        if (trackingMap.isNullOrEmpty() || !trackingMap.containsKey(item)) {//nothing tracking
+                            log(priority, tag + "[" + item + "]", message, t)
+                            continue
+                        }
+
+                        if (trackingMap.get(item)!!) {// tracking tag
+                            log(priority, tag + "[" + item + "]", message, t)
+                        }
+
+                    }
+                    return
+                }
+
+
+                for (filter in this) {//If there is filtering, only print the filtered part
+
+                    if (tags.contains(filter))
+                        log(priority, tag + "[" + filter + "]", message, t)
+                }
+
+            }
+
         }
 
         /** Formats a log message with optional arguments. */
@@ -310,6 +349,10 @@ class Timber private constructor() {
     }
 
     companion object Forest : Tree() {
+
+        val GLOBAL_SCOPE = 0;//所有线程有效
+        val THREAD_SCOPE = 1;//线程内有效
+
         /** Log a verbose message with optional format args. */
         @JvmStatic
         override fun v(@NonNls message: String?, vararg args: Any?) {
@@ -474,6 +517,89 @@ class Timber private constructor() {
             return this
         }
 
+        @JvmStatic
+        fun filter(vararg filter: String) {
+
+            for (tree in treeArray) {
+                for (item in filter) {
+                    tree.tagsFilter.add(item)
+                }
+            }
+        }
+
+        @JvmStatic
+        fun closeTags(vararg args: String) {
+            for (tree in treeArray) {
+                tree.tagsSwitch = false
+            }
+        }
+
+
+        @JvmStatic
+        fun openTags() {
+            for (tree in treeArray) {
+                tree.tagsSwitch = true
+            }
+        }
+
+        @JvmStatic
+        fun start(vararg tags: String) {
+            startTags(THREAD_SCOPE, *tags);
+        }
+
+        @JvmStatic
+        fun end(vararg tags: String) {
+            endTags(THREAD_SCOPE, *tags);
+        }
+
+        fun endAll() {
+            for (tree in treeArray) {
+                tree.startTrackingTags.remove()
+            }
+        }
+
+        private fun startTags(scope: Int, vararg tags: String) {
+
+            if (tags.isNullOrEmpty()) {
+                return
+            }
+
+            for (tree in treeArray) {
+
+                var trackingTagsMap = tree.trackingTags
+
+                if (trackingTagsMap == null) {
+                    trackingTagsMap = mutableMapOf<String, Boolean>()
+                    tree.startTrackingTags.set(trackingTagsMap)
+                }
+
+                for (tag in tags) {
+                    trackingTagsMap?.put(tag, true)
+                }
+            }
+        }
+
+        private fun endTags(scope: Int, vararg tags: String) {
+
+            if (tags.isNullOrEmpty()) {
+                return
+            }
+
+            for (tree in treeArray) {
+
+                var trackingTagsMap = tree.trackingTags
+
+                if (trackingTagsMap.isNullOrEmpty()) {
+                    return
+                }
+
+                for (tag in tags) {
+                    trackingTagsMap?.put(tag, false)
+                }
+            }
+        }
+
+
         /** Add a new logging tree. */
         @JvmStatic
         fun plant(tree: Tree) {
@@ -482,6 +608,7 @@ class Timber private constructor() {
                 trees.add(tree)
                 treeArray = trees.toTypedArray()
             }
+
         }
 
         /** Adds new logging trees. */
@@ -495,6 +622,7 @@ class Timber private constructor() {
                 Collections.addAll(this.trees, *trees)
                 treeArray = this.trees.toTypedArray()
             }
+
         }
 
         /** Remove a planted tree. */

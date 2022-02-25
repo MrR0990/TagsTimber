@@ -1,5 +1,6 @@
 package com.example.timber;
 
+import static com.example.timber.ui.DemoActivity2.TAG_LOGICAL2;
 import static timber.log.Timber.DebugTree;
 
 import android.app.Application;
@@ -14,32 +15,10 @@ public class ExampleApp extends Application {
     public void onCreate() {
         super.onCreate();
 
-        if (BuildConfig.DEBUG) {
-            Timber.plant(new DebugTree().filter("LifeCycles"));
-        } else {
-            Timber.plant(new CrashReportingTree());
-        }
+        Timber.plant(new DebugTree());
+        Timber.openTags();
+//        Timber.filter(TAG_LOGICAL2);
+
     }
 
-    /**
-     * A tree which logs important information for crash reporting.
-     */
-    private static class CrashReportingTree extends Timber.Tree {
-        @Override
-        protected void log(int priority, String tag, @NonNull String message, Throwable t) {
-            if (priority == Log.VERBOSE || priority == Log.DEBUG) {
-                return;
-            }
-
-            FakeCrashLibrary.log(priority, tag, message);
-
-            if (t != null) {
-                if (priority == Log.ERROR) {
-                    FakeCrashLibrary.logError(t);
-                } else if (priority == Log.WARN) {
-                    FakeCrashLibrary.logWarning(t);
-                }
-            }
-        }
-    }
 }

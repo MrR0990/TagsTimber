@@ -16,8 +16,7 @@ public class ExampleApp extends Application {
         super.onCreate();
 
         Timber.plant(new DebugTree());
-        Timber.openTags();
-//        Timber.filter(TAG_LOGICAL2);
+        Timber.openTags(TAG_LOGICAL2);
 
     }
 

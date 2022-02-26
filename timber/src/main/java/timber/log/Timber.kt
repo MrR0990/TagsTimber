@@ -32,11 +32,6 @@ class Timber private constructor() {
         @get:JvmSynthetic // Hide from public API.
         internal val tagsFilter = mutableListOf<String>()
 
-        @set:JvmSynthetic
-        internal open var tagsSwitch: Boolean = false
-            set(value) {
-                field = value
-            }
 
         @get:JvmSynthetic // Hide from public API.
         internal open val trackingTags: MutableMap<String, Boolean>?
@@ -203,41 +198,22 @@ class Timber private constructor() {
 
             log(priority, tag, message, t)
 
-            if (!tagsSwitch) {
-                return
-            }
-
 
             val tags = tags
-            if (tags.isNullOrEmpty()) {
+            if (tags.isNullOrEmpty() || tagsFilter.isNullOrEmpty()) {
                 return
             }
 
-            tagsFilter.apply {
+            val trackingMap = trackingTags//The tag to start logic tracking
 
-                val trackingMap = trackingTags//The tag to start logic tracking
+            for (item in tags) {
 
-                if (isEmpty()) {//If no filter, then print all
-                    for (item in tags) {
-
-                        if (trackingMap.isNullOrEmpty() || !trackingMap.containsKey(item)) {//nothing tracking
-                            log(priority, tag + "[" + item + "]", message, t)
-                            continue
-                        }
-
-                        if (trackingMap.get(item)!!) {// tracking tag
-                            log(priority, tag + "[" + item + "]", message, t)
-                        }
-
-                    }
-                    return
+                if (trackingMap.isNullOrEmpty() || !trackingMap.containsKey(item)) {//nothing tracking
+                    continue
                 }
 
-
-                for (filter in this) {//If there is filtering, only print the filtered part
-
-                    if (tags.contains(filter))
-                        log(priority, tag + "[" + filter + "]", message, t)
+                if (trackingMap.get(item)!!) {// tracking tag
+                    log(priority, tag + "[" + item + "]", message, t)
                 }
 
             }
@@ -518,7 +494,7 @@ class Timber private constructor() {
         }
 
         @JvmStatic
-        fun filter(vararg filter: String) {
+        private fun filter(vararg filter: String) {
 
             for (tree in treeArray) {
                 for (item in filter) {
@@ -528,18 +504,14 @@ class Timber private constructor() {
         }
 
         @JvmStatic
-        fun closeTags(vararg args: String) {
-            for (tree in treeArray) {
-                tree.tagsSwitch = false
-            }
+        private fun closeTags(vararg args: String) {
+
         }
 
 
         @JvmStatic
-        fun openTags() {
-            for (tree in treeArray) {
-                tree.tagsSwitch = true
-            }
+        fun openTags(vararg filter: String) {
+            filter(*filter)
         }
 
         @JvmStatic

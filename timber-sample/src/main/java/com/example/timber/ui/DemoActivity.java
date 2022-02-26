@@ -43,6 +43,7 @@ public class DemoActivity extends Activity {
 
     //实际执行步骤是method3-5
     void logical3() {
+        Timber.start(TAG_LOGICAL3);
         method3();
     }
 
@@ -73,7 +74,7 @@ public class DemoActivity extends Activity {
 
     private void method5() {
         Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method5: ");
-        Timber.end(TAG_LOGICAL2);
+        Timber.end(TAG_LOGICAL2, TAG_LOGICAL3);
     }
 
 }

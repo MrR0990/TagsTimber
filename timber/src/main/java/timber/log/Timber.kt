@@ -208,7 +208,7 @@ class Timber private constructor() {
 
             for (item in tags) {
 
-                if (trackingMap.isNullOrEmpty() || !trackingMap.containsKey(item)) {//nothing tracking
+                if (trackingMap.isNullOrEmpty() || !trackingMap.containsKey(item) || !tagsFilter.contains(item)) {//nothing tracking
                     continue
                 }
 

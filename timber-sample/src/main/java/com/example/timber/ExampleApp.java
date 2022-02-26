@@ -1,6 +1,7 @@
 package com.example.timber;
 
 import static com.example.timber.ui.DemoActivity2.TAG_LOGICAL2;
+import static com.example.timber.ui.DemoActivity2.TAG_LOGICAL3;
 import static timber.log.Timber.DebugTree;
 
 import android.app.Application;
@@ -16,7 +17,7 @@ public class ExampleApp extends Application {
         super.onCreate();
 
         Timber.plant(new DebugTree());
-        Timber.openTags(TAG_LOGICAL2);
+        Timber.openTags(TAG_LOGICAL3);
 
     }
 

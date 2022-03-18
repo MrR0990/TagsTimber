@@ -1,6 +1,6 @@
 <a name="KHf5P"></a>
 ## 目标
-从复杂逻辑日志链条中抽离出单个逻辑链条日志,减少日志干扰,基于[https://github.com/JakeWharton/timber](https://github.com/JakeWharton/timber)日志框架改造
+从复杂逻辑日志链条中抽离出单个逻辑链条日志,减少日志干扰,快速筛选逻辑链条日志,基于[https://github.com/JakeWharton/timber](https://github.com/JakeWharton/timber)日志框架改造
 
 <a name="blSoQ"></a>
 ## 执行过程日志存在交叉混淆

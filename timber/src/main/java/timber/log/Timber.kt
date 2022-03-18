@@ -503,10 +503,6 @@ class Timber private constructor() {
             }
         }
 
-        @JvmStatic
-        private fun closeTags(vararg args: String) {
-
-        }
 
 
         @JvmStatic

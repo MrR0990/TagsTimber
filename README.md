@@ -1,140 +1,263 @@
-![Timber](logo.png)
+<a name="KHf5P"></a>
+## 目标
+从复杂逻辑日志链条中抽离出单个逻辑链条日志,减少日志干扰,基于[https://github.com/JakeWharton/timber](https://github.com/JakeWharton/timber)日志框架改造
 
-This is a logger with a small, extensible API which provides utility on top of Android's normal
-`Log` class.
+<a name="blSoQ"></a>
+## 执行过程日志存在交叉混淆
 
-I copy this class into all the little apps I make. I'm tired of doing it. Now it's a library.
+---
 
-Behavior is added through `Tree` instances. You can install an instance by calling `Timber.plant`.
-Installation of `Tree`s should be done as early as possible. The `onCreate` of your application is
-the most logical choice.
+假设有以下场景,运行logical1(),logical2(),logical3()三个逻辑,每个method中都添加打印,代码如下
 
-The `DebugTree` implementation will automatically figure out from which class it's being called and
-use that class name as its tag. Since the tags vary, it works really well when coupled with a log
-reader like [Pidcat][1].
+```java
+public class DemoActivity2 extends Activity {
+    private static final String TAG = "DemoActivity";
 
-There are no `Tree` implementations installed by default because every time you log in production, a
-puppy dies.
-
-
-Usage
------
-
-Two easy steps:
-
- 1. Install any `Tree` instances you want in the `onCreate` of your application class.
- 2. Call `Timber`'s static methods everywhere throughout your app.
-
-Check out the sample app in `timber-sample/` to see it in action.
+    private static final String TAG_LOGICAL2 = "TAG_LOGICAL2";
+    private static final String TAG_LOGICAL3 = "TAG_LOGICAL3";
 
 
-Lint
-----
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        DemoActivityBinding binding = DemoActivityBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
 
-Timber ships with embedded lint rules to detect problems in your app.
-
- *  **TimberArgCount** (Error) - Detects an incorrect number of arguments passed to a `Timber` call for
-    the specified format string.
-
-        Example.java:35: Error: Wrong argument count, format string Hello %s %s! requires 2 but format call supplies 1 [TimberArgCount]
-            Timber.d("Hello %s %s!", firstName);
-            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- *  **TimberArgTypes** (Error) - Detects arguments which are of the wrong type for the specified format string.
-
-        Example.java:35: Error: Wrong argument type for formatting argument '#0' in success = %b: conversion is 'b', received String (argument #2 in method call) [TimberArgTypes]
-            Timber.d("success = %b", taskName);
-                                     ~~~~~~~~
- *  **TimberTagLength** (Error) - Detects the use of tags which are longer than Android's maximum length of 23.
-
-        Example.java:35: Error: The logging tag can be at most 23 characters, was 35 (TagNameThatIsReallyReallyReallyLong) [TimberTagLength]
-            Timber.tag("TagNameThatIsReallyReallyReallyLong").d("Hello %s %s!", firstName, lastName);
-            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- *  **LogNotTimber** (Warning) - Detects usages of Android's `Log` that should be using `Timber`.
-
-        Example.java:35: Warning: Using 'Log' instead of 'Timber' [LogNotTimber]
-            Log.d("Greeting", "Hello " + firstName + " " + lastName + "!");
-                ~
-
- *  **StringFormatInTimber** (Warning) - Detects `String.format` used inside of a `Timber` call. Timber
-    handles string formatting automatically.
-
-        Example.java:35: Warning: Using 'String#format' inside of 'Timber' [StringFormatInTimber]
-            Timber.d(String.format("Hello, %s %s", firstName, lastName));
-                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- *  **BinaryOperationInTimber** (Warning) - Detects string concatenation inside of a `Timber` call. Timber
-    handles string formatting automatically and should be preferred over manual concatenation.
-
-        Example.java:35: Warning: Replace String concatenation with Timber's string formatting [BinaryOperationInTimber]
-            Timber.d("Hello " + firstName + " " + lastName + "!");
-                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
- *  **TimberExceptionLogging** (Warning) - Detects the use of null or empty messages, or using the exception message
-    when logging an exception.
-
-        Example.java:35: Warning: Explicitly logging exception message is redundant [TimberExceptionLogging]
-             Timber.d(e, e.getMessage());
-                         ~~~~~~~~~~~~~~
+        logical1();
+        logical2();
+        logical3();
+    }
 
 
-Download
---------
+    //实际执行步骤是method1-5
+    void logical1() {
+        method1();
+    }
 
-```groovy
-repositories {
-  mavenCentral()
+    //实际执行步骤是method2-5
+    void logical2() {
+        method2();
+    }
+
+    //实际执行步骤是method3-5
+    void logical3() {
+        method3();
+    }
+
+
+    //Method
+    private void method1() {
+        Log.d(TAG, "method1: ");
+        method2();
+    }
+
+    private void method2() {
+        Log.d(TAG, "method2: ");
+        Log.d(TAG_LOGICAL2, "method2: ");
+        method3();
+    }
+
+    private void method3() {
+
+        Log.d(TAG, "method3: ");
+        Log.d(TAG_LOGICAL2, "method3: ");
+        Log.d(TAG_LOGICAL3, "method3: ");
+        method4();
+    }
+
+    private void method4() {
+
+        Log.d(TAG, "method4: ");
+        Log.d(TAG_LOGICAL2, "method4: ");
+        Log.d(TAG_LOGICAL3, "method4: ");
+        method5();
+
+    }
+
+    private void method5() {
+
+        Log.d(TAG, "method5: ");
+        Log.d(TAG_LOGICAL2, "method5: ");
+        Log.d(TAG_LOGICAL3, "method5: ");
+    }
+
 }
 
-dependencies {
-  implementation 'com.jakewharton.timber:timber:5.0.1'
+```
+**运行结果如下,此时过滤TAG_LOGICAL2的日志比较混乱,并且不是很准确,期间掺杂logical3()执行步骤的日志.**
+```java
+2022-02-25 14:17:27.712 11026-11026/com.example.timber D/DemoActivity: method1: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method2: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method2: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method3: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method3: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL3: method3: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method4: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method4: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL3: method4: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method5: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method5: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL3: method5: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method2: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method2: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL3: method2: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/DemoActivity: method3: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL2: method3: 
+2022-02-25 14:17:27.713 11026-11026/com.example.timber D/TAG_LOGICAL3: method3: 
+......
+```
+
+<a name="wlBYk"></a>
+## 如何进行优化?
+> 使用仓库: [https://github.com/MrR0990/TagsTimber](https://github.com/MrR0990/TagsTimber)
+
+```java
+DemoActivity.java
+
+public class DemoActivity extends Activity {
+    private static final String TAG = "DemoActivity";
+
+    private static final String TAG_LOGICAL2 = "TAG_LOGICAL2";
+    private static final String TAG_LOGICAL3 = "TAG_LOGICAL3";
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        DemoActivityBinding binding = DemoActivityBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+
+        logical1();
+        logical2();
+        logical3();
+    }
+
+
+  
+    void logical1() {
+        method1();
+    }
+
+   
+    void logical2() {
+        Timber.start(TAG_LOGICAL2);//开始记录TAG_LOGICAL2的日志
+        method2();
+    }
+
+ 
+    void logical3() {
+        Timber.start(TAG_LOGICAL3);//开始记录TAG_LOGICAL3的日志
+        method3();
+    }
+
+
+   
+    private void method1() {
+        Timber.d("method1: ");
+        method2();
+    }
+
+    private void method2() {
+      
+        Timber.tags(TAG_LOGICAL2).d("method2: ");//打印TAG_LOGICAL2的日志
+        method3();
+    }
+
+    private void method3() {
+       
+        Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method3: ");////同时记录TAG_LOGICAL2和TAG_LOGICAL3的日志
+        method4();
+    }
+
+    private void method4() {
+        Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method4: ");
+        method5();
+
+    }
+
+    private void method5() {
+        Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method5: ");
+        Timber.end(TAG_LOGICAL2, TAG_LOGICAL3);//结束TAG_LOGICAL2和TAG_LOGICAL3的日志
+    }
+
+}
+
+```
+在ExampleApp进行全局的配置
+```java
+ExampleApp.java
+
+public class ExampleApp extends Application {
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        Timber.plant(new DebugTree());//初始化框架
+        Timber.openTags(TAG_LOGICAL3);//只查看TAG_LOGICAL3的日志
+    }
+
 }
 ```
 
-Documentation is available at [jakewharton.github.io/timber/docs/5.x/](https://jakewharton.github.io/timber/docs/5.x/).
 
-<details>
-<summary>Snapshots of the development version are available in Sonatype's snapshots repository.</summary>
-<p>
+**运行结果**
+```java
+2022-03-18 18:14:54.525 22498-22498/com.example.timber D/DemoActivity: method1: 
+2022-03-18 18:14:54.527 22498-22498/com.example.timber D/DemoActivity: method2: 
+2022-03-18 18:14:54.528 22498-22498/com.example.timber D/DemoActivity: method3: 
+2022-03-18 18:14:54.529 22498-22498/com.example.timber D/DemoActivity: method4: 
+2022-03-18 18:14:54.530 22498-22498/com.example.timber D/DemoActivity: method5: 
+2022-03-18 18:14:54.531 22498-22498/com.example.timber D/DemoActivity: method2: 
+2022-03-18 18:14:54.532 22498-22498/com.example.timber D/DemoActivity: method3: 
+2022-03-18 18:14:54.534 22498-22498/com.example.timber D/DemoActivity: method4: 
+2022-03-18 18:14:54.535 22498-22498/com.example.timber D/DemoActivity: method5: 
+2022-03-18 18:14:54.536 22498-22498/com.example.timber D/DemoActivity: method3: 
+2022-03-18 18:14:54.537 22498-22498/com.example.timber D/DemoActivity[TAG_LOGICAL3]: method3: 
+2022-03-18 18:14:54.538 22498-22498/com.example.timber D/DemoActivity: method4: 
+2022-03-18 18:14:54.538 22498-22498/com.example.timber D/DemoActivity[TAG_LOGICAL3]: method4: 
+2022-03-18 18:14:54.539 22498-22498/com.example.timber D/DemoActivity: method5: 
+2022-03-18 18:14:54.540 22498-22498/com.example.timber D/DemoActivity[TAG_LOGICAL3]: method5: 
 
-```groovy
-repositories {
-  mavenCentral()
-  maven {
-    url 'https://oss.sonatype.org/content/repositories/snapshots/'
-  }
-}
-
-dependencies {
-  implementation 'com.jakewharton.timber:timber:5.1.0-SNAPSHOT'
-}
 ```
 
-Snapshot documentation is available at [jakewharton.github.io/timber/docs/latest/](https://jakewharton.github.io/timber/docs/latest/).
+- 非常清晰看到logical3()执行步骤的日志,
+- 执行logical3()时调用了end(TAG_LOGICAL2)之后,在logical3()步骤中,不会重复打印logical2()的日志
+- 在众多复杂日志中可以非常清晰的显示出logical3()的日志以及logical3()的执行逻辑
 
-</p>
-</details>
+**切换调试的逻辑,在全局配置中,使用Timber.openTags(),即可切换想要调试的逻辑日志**
+```java
+ExampleApp.java
+
+Timber.openTags(TAG_LOGICAL3);//只查看TAG_LOGICAL3的日志
+//Timber.openTags(TAG_LOGICAL2,TAG_LOGICAL3);//同时查看TAG_LOGICAL2,TAG_LOGICAL3的日志
+```
+
+**特别说明:**<br />start()和end()方法只生效于当前线程,如果切换了线程,在另一线程也需要调用start()和end()伪代码如下
+```java
+
+Timber.start(TAG_LOGICAL2);
+
+......
+
+Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method");
+
+new Thread(new Runnable(){
+   void run(){
+  
+	Timber.start(TAG_LOGICAL2);//新的线程也需要调用Start()方法
+	......
+	Timber.tags(TAG_LOGICAL2, TAG_LOGICAL3).d("method");
+	......
+	Timber.end(TAG_LOGICAL2);
+
+ }
+           
+})
+
+......
+
+Timber.end(TAG_LOGICAL2);
 
 
-License
--------
-
-    Copyright 2013 Jake Wharton
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+```
 
 
-
- [1]: http://github.com/JakeWharton/pidcat/
- [snap]: https://oss.sonatype.org/content/repositories/snapshots/
